@@ -39,7 +39,7 @@ namespace ros2_ipcamera
     //TODO(Tasuku): add call back to handle parameter events.
     // Set up publishers.
     this->pub_ = image_transport::create_camera_publisher(
-      this, "~/image_raw", qos_.get_rmw_qos_profile());
+      this, "image_raw", qos_.get_rmw_qos_profile());
 
     this->execute();
   }

@@ -20,25 +20,40 @@ find_package(cv_bridge REQUIRED)
 find_package(camera_info_manager REQUIRED)
 find_package(camera_calibration_parsers REQUIRED)
 find_package(image_transport REQUIRED)
-find_package(OpenCV 4 REQUIRED)
 
-include_directories(include)
+# OpenCV (VideoCapture lives in videoio)
+find_package(OpenCV REQUIRED COMPONENTS core imgproc imgcodecs videoio)
 
 set(node_plugins "")
 
+# Component library (plugin)
 add_library(ipcamera_component SHARED
-  src/ipcamera_component.cpp)
+  src/ipcamera_component.cpp
+)
 target_compile_definitions(ipcamera_component
-  PRIVATE "COMPOSITION_BUILDING_DLL")
+  PRIVATE "COMPOSITION_BUILDING_DLL"
+)
+
+target_include_directories(ipcamera_component PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+  ${OpenCV_INCLUDE_DIRS}
+)
 
 ament_target_dependencies(ipcamera_component
-  "rclcpp"
-  "rclcpp_components"
-  "cv_bridge"
-  "sensor_msgs"
-  "camera_info_manager"
-  "camera_calibration_parsers"
-  "image_transport")
+  rclcpp
+  rclcpp_components
+  rclcpp_lifecycle
+  cv_bridge
+  sensor_msgs
+  camera_info_manager
+  camera_calibration_parsers
+  image_transport
+)
+
+# IMPORTANT: plain signature (no PRIVATE/PUBLIC) to match ament_target_dependencies() usage
+target_link_libraries(ipcamera_component
+  ${OpenCV_LIBS}
+)
 
 rclcpp_components_register_nodes(ipcamera_component "ros2_ipcamera::IpCamera")
 set(node_plugins "${node_plugins}ros2_ipcamera::IpCamera;$<TARGET_FILE:ipcamera_component>\n")
@@ -47,34 +62,42 @@ set(node_plugins "${node_plugins}ros2_ipcamera::IpCamera;$<TARGET_FILE:ipcamera_
 # it needs to make sure that the library path is being exported
 if(NOT WIN32)
   ament_environment_hooks(
-    "${ament_cmake_package_templates_ENVIRONMENT_HOOK_LIBRARY_PATH}")
+    "${ament_cmake_package_templates_ENVIRONMENT_HOOK_LIBRARY_PATH}"
+  )
 endif()
 
+# Optional composition executable
 add_executable(composition
-  src/composition.cpp)
+  src/composition.cpp
+)
+
+# composition needs your package headers too
+target_include_directories(composition PRIVATE
+  ${CMAKE_CURRENT_SOURCE_DIR}/include
+)
+
 target_link_libraries(composition
-  ipcamera_component)
+  ipcamera_component
+)
+
 ament_target_dependencies(composition
-  "rclcpp")
+  rclcpp
+)
 
 install(TARGETS
   ipcamera_component
   ARCHIVE DESTINATION lib
   LIBRARY DESTINATION lib
-  RUNTIME DESTINATION bin)
+  RUNTIME DESTINATION bin
+)
 
 install(TARGETS
   composition
-  DESTINATION lib/${PROJECT_NAME})
+  DESTINATION lib/${PROJECT_NAME}
+)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
-  # the following line skips the linter which checks for copyrights
-  # uncomment the line when a copyright and license is not present in all source files
-  #set(ament_cmake_copyright_FOUND TRUE)
-  # the following line skips cpplint (only works in a git repo)
-  # uncomment the line when this package is not in a git repo
-  #set(ament_cmake_cpplint_FOUND TRUE)
   ament_lint_auto_find_test_dependencies()
 endif()
 
