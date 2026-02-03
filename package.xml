@@ -1,28 +1,35 @@
 <?xml version="1.0"?>
-<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd"
+            schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>ros2_ipcamera</name>
+  <name>indoor_camera</name>
   <version>0.0.1</version>
-  <description>ROS2 component for use with IP cameras</description>
-  <author>Tasuku Miura</author>
-  <maintainer email="tasuku@gmail.com">tasuku</maintainer>
+  <description>ROS 2 component for use with IP cameras</description>
+
+  <maintainer email="jacopo.vivaldi@tii.ae">Jacopo Vivaldi</maintainer>
   <license>MIT</license>
 
-  <url type="repository">https://github.com/surfertas/ros2_ipcamera</url>
   <buildtool_depend>ament_cmake</buildtool_depend>
 
-  <depend>libopencv-dev</depend>
+  <!-- ROS dependencies -->
   <depend>rclcpp</depend>
   <depend>rclcpp_components</depend>
   <depend>rclcpp_lifecycle</depend>
-  <depend>rcutils</depend>
-  <depend>rmw</depend>
-  <depend>rmw_implementation_cmake</depend>
   <depend>sensor_msgs</depend>
-  <depend>cv_bridge</depend>
   <depend>image_transport</depend>
-  <depend>launch_ros</depend>
+  <depend>cv_bridge</depend>
+  <depend>camera_info_manager</depend>
   <depend>camera_calibration_parsers</depend>
+
+  <!-- Launch runtime -->
+  <exec_depend>launch</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+  <exec_depend>ament_index_python</exec_depend>
+  <exec_depend>python3-yaml</exec_depend>
+
+  <!-- System dependency (optional to list here; many teams omit and document in README) -->
+  <build_depend>libopencv-dev</build_depend>
+  <exec_depend>libopencv-dev</exec_depend>
 
   <test_depend>ament_lint_auto</test_depend>
   <test_depend>ament_lint_common</test_depend>

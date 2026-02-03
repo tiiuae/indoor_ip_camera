@@ -15,16 +15,17 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <cstring>
 #include <rclcpp/rclcpp.hpp>
 #include <rclcpp/parameter.hpp>
-#include "ros2_ipcamera/ipcamera_component.hpp"
+#include "indoor_camera/rtsp_camera.hpp"
 
 
-namespace ros2_ipcamera
+namespace indoor_camera
 {
-  IpCamera::IpCamera(const std::string & node_name, const rclcpp::NodeOptions & options)
+  RTSPCamera::RTSPCamera(const std::string & node_name, const rclcpp::NodeOptions & options)
   : Node(node_name, options),
-    qos_(rclcpp::QoS(rclcpp::KeepLast(1)).best_effort())
+    qos_(rclcpp::QoS(rclcpp::KeepLast(2)).best_effort().durability_volatile())
   {
     RCLCPP_INFO(this->get_logger(), "namespace: %s", this->get_namespace());
     RCLCPP_INFO(this->get_logger(), "name: %s", this->get_name());
@@ -33,66 +34,52 @@ namespace ros2_ipcamera
 
     // Declare parameters.
     this->initialize_parameters();
-
     this->configure();
 
-    //TODO(Tasuku): add call back to handle parameter events.
-    // Set up publishers.
+    // Run pipeline
+    // this->gstreamerPipeline();
+
+    // Image publisher
     this->pub_ = image_transport::create_camera_publisher(
       this, "image_raw", qos_.get_rmw_qos_profile());
-
     this->execute();
-  }
+      
+    }
 
-  IpCamera::IpCamera(const rclcpp::NodeOptions & options)
-  : IpCamera::IpCamera("ipcamera", options)
+  RTSPCamera::RTSPCamera(const rclcpp::NodeOptions & options)
+  : RTSPCamera::RTSPCamera("ipcamera", options)
   {}
 
   void
-  IpCamera::configure()
+  RTSPCamera::configure()
   {
-    rclcpp::Logger node_logger = this->get_logger();
-
     // TODO(Tasuku): move to on_configure() when rclcpp_lifecycle available.
-    this->get_parameter<std::string>("rtsp_uri", source_);
-    RCLCPP_INFO(node_logger, "rtsp_uri: %s", source_.c_str());
+    this->cap_.open(source_, cv::CAP_FFMPEG); 
 
-    this->get_parameter<std::string>("camera_calibration_file", camera_calibration_file_param_);
-    RCLCPP_INFO(node_logger, "camera_calibration_file: %s",
-                camera_calibration_file_param_.c_str());
-
-    this->get_parameter<int>("image_width", width_);
-    RCLCPP_INFO(node_logger, "image_width: %d", width_);
-
-    this->get_parameter<int>("image_height", height_);
-    RCLCPP_INFO(node_logger, "image_height: %d", height_);
-
-    // TODO(Tasuku): move to on_configure() when rclcpp_lifecycle available.
-    this->cap_.open(source_);
+    // Try to keep internal buffer tiny
+    this->cap_.set(cv::CAP_PROP_BUFFERSIZE, 1);
 
     // Set the width and height based on command line arguments.
     // The width, height has to match the available resolutions of the IP camera.
     this->cap_.set(cv::CAP_PROP_FRAME_WIDTH, static_cast<double>(width_));
     this->cap_.set(cv::CAP_PROP_FRAME_HEIGHT, static_cast<double>(height_));
+
     if (!this->cap_.isOpened()) {
-      RCLCPP_ERROR(node_logger, "Could not open video stream");
+      RCLCPP_ERROR(this->get_logger(), "Could not open video stream");
       throw std::runtime_error("Could not open video stream");
     }
 
-    // TODO(Tasuku): move to on_configure() when rclcpp_lifecycle available.
-    // https://docs.ros.org/api/camera_info_manager/html/classcamera__info__manager_1_1CameraInfoManager.html#_details
-    // Make sure that cname is equal to camera_name in camera_info.yaml file. Default cname is set to "camera".
     cinfo_manager_ = std::make_shared<camera_info_manager::CameraInfoManager>(this);
     if (cinfo_manager_->validateURL(camera_calibration_file_param_)) {
       cinfo_manager_->loadCameraInfo(camera_calibration_file_param_);
     } else {
-      RCLCPP_WARN(node_logger, "CameraInfo URL not valid.");
-      RCLCPP_WARN(node_logger, "URL IS %s", camera_calibration_file_param_.c_str());
+      RCLCPP_WARN(this->get_logger(), "CameraInfo URL not valid.");
+      RCLCPP_WARN(this->get_logger(), "URL IS %s", camera_calibration_file_param_.c_str());
     }
   }
 
   void
-  IpCamera::initialize_parameters()
+  RTSPCamera::initialize_parameters()
   {
     rcl_interfaces::msg::ParameterDescriptor rtsp_uri_descriptor;
     rtsp_uri_descriptor.name = "rtsp_uri";
@@ -119,10 +106,55 @@ namespace ros2_ipcamera
     image_height_descriptor.type =
       rcl_interfaces::msg::ParameterType::PARAMETER_INTEGER;
     this->declare_parameter("image_height", 480, image_height_descriptor);
+        
+    // Camera parameters
+    this->get_parameter<std::string>("rtsp_uri", source_);
+    RCLCPP_INFO(this->get_logger(), "rtsp_uri: %s", source_.c_str());
+
+    this->get_parameter<std::string>("camera_calibration_file", camera_calibration_file_param_);
+    RCLCPP_INFO(this->get_logger(), "camera_calibration_file: %s",
+                camera_calibration_file_param_.c_str());
+
+    this->get_parameter<int>("image_width", width_);
+    RCLCPP_INFO(this->get_logger(), "image_width: %d", width_);
+
+    this->get_parameter<int>("image_height", height_);
+    RCLCPP_INFO(this->get_logger(), "image_height: %d", height_);
+
+    // GStreamer Pipeline
+    this->declare_parameter<bool>("operator_view", true);
+    this->declare_parameter<std::string>("operator_view_cmd",
+      "gst-launch-1.0 -q rtspsrc location=RTSP_URI protocols=udp latency=0 drop-on-latency=true ! "
+      "rtph264depay ! h264parse ! avdec_h264 ! videoconvert ! "
+      "queue max-size-buffers=1 leaky=downstream ! autovideosink sync=false"
+    );
+
+    this->get_parameter("operator_view", operator_view_);
+    this->get_parameter("operator_view_cmd", operator_view_cmd_);
+    RCLCPP_INFO(this->get_logger(), "gstreamer_pipeline: %s", operator_view_cmd_.c_str());
+  }
+
+
+  void
+  RTSPCamera::gstreamerPipeline()
+  {
+    if (operator_view_) {
+      std::string cmd = operator_view_cmd_;
+      // replace token with actual URI
+      const std::string token = "RTSP_URI";
+      if (cmd.find(token) != std::string::npos) {
+        cmd.replace(cmd.find(token), token.size(), source_);
+      }
+
+      // Spawn in background (fork/exec is better than system("&"), but system works too)
+      cmd += " &";
+      RCLCPP_INFO(this->get_logger(), "Starting operator view: %s", cmd.c_str());
+      (void)std::system(cmd.c_str());
+    }
   }
 
   void
-  IpCamera::execute()
+  RTSPCamera::execute()
   {
     rclcpp::Rate loop_rate(freq_);
 
@@ -138,8 +170,12 @@ namespace ros2_ipcamera
       auto msg = std::make_unique<sensor_msgs::msg::Image>();
       msg->is_bigendian = false;
 
-      // Get the frame from the video capture.
-      this->cap_ >> frame;
+      // Drain queued frames (drop latency)
+      for (int i = 0; i < 3; ++i) {
+        if (!this->cap_.grab()) break;
+      }
+      this->cap_.retrieve(frame);
+
       // Check if the frame was grabbed correctly
       if (!frame.empty()) {
         // Convert to a ROS image
@@ -152,8 +188,10 @@ namespace ros2_ipcamera
     }
   }
 
+
+
   std::string
-  IpCamera::mat_type2encoding(int mat_type)
+  RTSPCamera::mat_type2encoding(int mat_type)
   {
     switch (mat_type) {
       case CV_8UC1:
@@ -170,7 +208,7 @@ namespace ros2_ipcamera
   }
 
   void
-  IpCamera::convert_frame_to_message(
+  RTSPCamera::convert_frame_to_message(
     const cv::Mat & frame,
     size_t frame_id,
     sensor_msgs::msg::Image & msg,
@@ -195,4 +233,4 @@ namespace ros2_ipcamera
 }
 
 #include "rclcpp_components/register_node_macro.hpp"
-RCLCPP_COMPONENTS_REGISTER_NODE(ros2_ipcamera::IpCamera)
+RCLCPP_COMPONENTS_REGISTER_NODE(indoor_camera::RTSPCamera)

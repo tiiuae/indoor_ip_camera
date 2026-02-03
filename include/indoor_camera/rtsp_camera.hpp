@@ -11,8 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-#ifndef IPCAMERA_COMPONENT_H
-#define IPCAMERA_COMPONENT_H
+#ifndef INDOOR_CAMERA_COMPONENT_Hs
+#define INDOOR_CAMERA_COMPONENT_H
 
 #include "opencv2/highgui/highgui.hpp"
 #include "opencv2/imgproc.hpp"
@@ -20,7 +20,7 @@
 #include <rclcpp/logger.hpp>
 #include "sensor_msgs/msg/image.hpp"
 #include "sensor_msgs/msg/camera_info.hpp"
-#include "ros2_ipcamera/visibility_control.hpp"
+#include "indoor_camera/visibility_control.hpp"
 #include <camera_info_manager/camera_info_manager.hpp>
 #include <image_transport/image_transport.hpp>
 #include <chrono>
@@ -28,22 +28,22 @@
 
 using namespace std::chrono_literals;
 
-namespace ros2_ipcamera
+namespace indoor_camera
 {
-  class IpCamera : public rclcpp::Node
+  class RTSPCamera : public rclcpp::Node
   {
   public:
     /**
-     * Instantiates the IpCamera Node.
+     * Instantiates the RTSPCamera Node.
      */
     COMPOSITION_PUBLIC
-    explicit IpCamera(const std::string& node_name, const rclcpp::NodeOptions & options);
+    explicit RTSPCamera(const std::string& node_name, const rclcpp::NodeOptions & options);
 
     /**
      * Delegates construction.
      */
     COMPOSITION_PUBLIC
-    explicit IpCamera(const rclcpp::NodeOptions & options);
+    explicit RTSPCamera(const rclcpp::NodeOptions & options);
 
     /**;
      * Configures component.
@@ -67,6 +67,11 @@ namespace ros2_ipcamera
     COMPOSITION_PUBLIC
     void
     execute();
+    
+    /**
+     * Run gstreamer pipeline
+     */
+    void gstreamerPipeline();
 
   private:
     std::shared_ptr<camera_info_manager::CameraInfoManager> cinfo_manager_;
@@ -81,6 +86,11 @@ namespace ros2_ipcamera
     int width_;
     int height_;
 
+    bool operator_view_{false};
+    std::string operator_view_cmd_;
+    pid_t operator_view_pid_{-1};
+
+
     std::string
     mat_type2encoding(int mat_type);
 
@@ -91,6 +101,6 @@ namespace ros2_ipcamera
       sensor_msgs::msg::Image & msg,
       sensor_msgs::msg::CameraInfo & camera_info_msg);
   };
-}  // namespace ros2_ipcamera
+}  // namespace indoor_camera
 
-#endif // IPCAMERA_COMPONENT_H
+#endif // INDOOR_CAMERA_COMPONENT_H

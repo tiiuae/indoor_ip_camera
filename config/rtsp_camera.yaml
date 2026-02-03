@@ -1,0 +1,10 @@
+indoor_camera:
+  ros__parameters:
+    rtsp:
+      rtsp_uri: "rtsp://192.168.1.108:554/stream=1" # "rtsp://192.168.1.108:554/stream=0" for 1080p
+      protcol: "udp"
+      enable_gst: true
+    ros_image:
+      image_topic: "image_raw"
+      image_width: 640 #1920
+      image_height: 480 #1080
