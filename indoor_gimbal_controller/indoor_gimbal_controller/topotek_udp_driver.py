@@ -70,7 +70,7 @@ class TopotekUdpDriver(Node):
         self.declare_parameter("rx_port", 9004)
 
         # address bits: source 'P' (network side), destinations: 'G' gimbal, 'D' system/image
-        self.declare_parameter("src_addr", "P")
+        self.declare_parameter("src_addr", "U")
 
         # UAV periodic send
         self.declare_parameter("uav_send_hz", 30.0)
