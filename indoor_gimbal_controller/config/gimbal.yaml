@@ -1,0 +1,12 @@
+indoor_gimbal_controller:
+  ros__parameters:
+    camera_ip: "192.168.1.108:554"
+    tx_port: 9003
+    rx_port: 9004
+    src_addr: "U" 
+    dst_addr: "G"  # gimbal
+    send_rate_hz: 30.0
+    speed_dps: 9.9
+    topic_gimbal_angles: "gimbal_angles_gyro_deg"
+    topic_vehicle_rpy: "vehicle_rpy_deg"
+    topic_ptz: "ptz_cmd"
